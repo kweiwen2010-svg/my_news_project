@@ -15,7 +15,6 @@ file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_reuters_news():
-  # 透過 Google News RSS 即時過濾路透社 (Reuters) 的最新新聞
   url = "https://news.google.com/rss/search?q=site:reuters.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
   req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 
@@ -26,33 +25,48 @@ def fetch_reuters_news():
       root = ET.fromstring(xml_data)
       items = root.findall(".//item")
 
-      for item in items[:3]:  # 取前三則最新新聞
+      for item in items:
+        if len(news_list) >= 3:
+          break
+
         title_elem = item.find("title")
         link_elem = item.find("link")
         desc_elem = item.find("description")
 
-        title = title_elem.text if title_elem is not None else "無標題"
-        link = link_elem.text if link_elem is not None else "https://www.reuters.com"
-        desc = desc_elem.text if desc_elem is not None else title
+        raw_title = title_elem.text if title_elem is not None else ""
+        link = (
+            link_elem.text if link_elem is not None else "https://www.reuters.com"
+        )
+        desc = desc_elem.text if desc_elem is not None else ""
+
+        # 清理標題：移除結尾的 " - reuters.com" 等雜訊
+        if " - " in raw_title:
+          title = raw_title.rsplit(" - ", 1)[0]
+        else:
+          title = raw_title
 
         # 清除 HTML 標籤
         clean_desc = re.sub(r"<[^<]+?>", "", desc)
-        if len(clean_desc) > 100:
+        if not clean_desc or clean_desc == "reuters.com":
+          clean_desc = "點擊下方連結即可前往路透社閱讀完整外電報導內容。"
+        elif len(clean_desc) > 100:
           clean_desc = clean_desc[:100] + "..."
 
-        news_list.append({"title": title, "summary": clean_desc, "url": link})
+        # 避免抓到無效或重複標題
+        if title and title != "reuters.com":
+          news_list.append(
+              {"title": title, "summary": clean_desc, "url": link}
+          )
   except Exception as e:
     print(f"抓取即時新聞發生錯誤: {e}")
 
-  # 如果抓取失敗，提供備用預設值
-  if not news_list:
-    news_list = [{
+  # 如果抓取不足三則，補上備用預設值
+  while len(news_list) < 3:
+    news_list.append({
         "title": "全球市場即時動態更新中",
-        "summary": (
-            "系統正在同步最新外電與市場資訊，請稍後重新整理查看。"
-        ),
+        "summary": "系統正在同步最新外電與市場資訊，請稍後重新整理查看。",
         "url": "https://www.reuters.com",
-    }]
+    })
 
   return news_list
 
