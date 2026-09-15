@@ -39,20 +39,37 @@ def fetch_reuters_news():
         )
         desc = desc_elem.text if desc_elem is not None else ""
 
-        # 清理標題：移除結尾的 " - reuters.com" 等雜訊
-        if " - " in raw_title:
-          title = raw_title.rsplit(" - ", 1)[0]
-        else:
-          title = raw_title
+        # 徹底清理標題後綴
+        title = raw_title
+        for sep in [" - reuters.com", " - Reuters", " | Reuters"]:
+          if title.endswith(sep):
+            title = title[: -len(sep)]
+        if " - " in title:
+          parts = title.rsplit(" - ", 1)
+          if (
+              "reuters" in parts[1].lower()
+              or "路透" in parts[1]
+              or len(parts[1]) < 15
+          ):
+            title = parts[0]
 
-        # 清除 HTML 標籤
+        # 清除 HTML 標籤並移除 reuters.com 字樣
         clean_desc = re.sub(r"<[^<]+?>", "", desc)
-        if not clean_desc or clean_desc == "reuters.com":
-          clean_desc = "點擊下方連結即可前往路透社閱讀完整外電報導內容。"
-        elif len(clean_desc) > 100:
-          clean_desc = clean_desc[:100] + "..."
+        clean_desc = clean_desc.replace("reuters.com", "").strip()
 
-        # 避免抓到無效或重複標題
+        # 如果摘要與標題重複、太短或空白，改用精簡導讀文字
+        if (
+            not clean_desc
+            or clean_desc == title
+            or len(clean_desc) < 5
+            or title in clean_desc
+        ):
+          clean_desc = (
+              "點擊下方「閱讀原文」連結，即可前往路透社閱讀詳細報導內容。"
+          )
+        elif len(clean_desc) > 120:
+          clean_desc = clean_desc[:120] + "..."
+
         if title and title != "reuters.com":
           news_list.append(
               {"title": title, "summary": clean_desc, "url": link}
@@ -60,7 +77,6 @@ def fetch_reuters_news():
   except Exception as e:
     print(f"抓取即時新聞發生錯誤: {e}")
 
-  # 如果抓取不足三則，補上備用預設值
   while len(news_list) < 3:
     news_list.append({
         "title": "全球市場即時動態更新中",
