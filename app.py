@@ -3,9 +3,9 @@ import json
 import os
 import streamlit as st
 
-st.set_page_config(page_title="即時財經頭條", layout="centered")
+st.set_page_config(page_title="全球熱門焦點頭條", layout="centered")
 
-st.title("📰 即時財經頭條")
+st.title("📰 全球熱門焦點頭條")
 
 DATA_DIR = "news_data"
 today_str = datetime.now().strftime("%Y-%m-%d")

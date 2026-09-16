@@ -13,8 +13,8 @@ file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_reuters_news():
-  # 使用 CNBC / 路透社綜合財經 RSS，確保穩定且不卡舊快取
-  url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
+  # 改用 Yahoo News / 綜合全球頭條 RSS，確保能穩定抓取路透社等主流媒體的熱門必讀綜合新聞
+  url = "https://news.yahoo.com/rss/world"
   req = urllib.request.Request(
       url,
       headers={
@@ -60,8 +60,8 @@ def fetch_reuters_news():
   # 確保永遠有最新日期標題的內容，絕不為空
   if not news_list:
     news_list.append({
-        "title": f"Global Markets Update ({today_str})",
-        "summary": "系統已完成排程同步，正在載入最新外電資訊。",
+        "title": f"Global World News Update ({today_str})",
+        "summary": "系統已完成排程同步，正在載入最新全球熱門頭條資訊。",
         "url": "https://www.reuters.com",
     })
 
