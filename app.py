@@ -3,7 +3,7 @@ import json
 import os
 import streamlit as st
 
-st.set_page_config(page_title="路透社即時頭條", page_chars="📰", layout="centered")
+st.set_page_config(page_title="路透社即時頭條", layout="centered")
 
 st.title("📰 路透社即時頭條")
 
@@ -26,7 +26,7 @@ if os.path.exists(file_path):
       if content:
         news_data = json.loads(content)
   except Exception as e:
-    st.warning(f"正在載入最新資料，請稍後重新整理... (錯誤提示: {e})")
+    st.warning(f"正在載入最新資料，請稍後重新整理...")
 
 # 如果沒有資料或讀取失敗，提供預設顯示
 if not news_data:
