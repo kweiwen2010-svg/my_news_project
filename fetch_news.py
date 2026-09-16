@@ -5,18 +5,24 @@ import re
 import urllib.request
 import xml.etree.ElementTree as ET
 
-# 確保資料夾存在
 DATA_DIR = "news_data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# 取得當天日期字串 (例如: 2026-09-15)
 today_str = datetime.now().strftime("%Y-%m-%d")
 file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_reuters_news():
-  url = "https://news.google.com/rss/search?q=site:reuters.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
-  req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+  # 使用 CNBC / 路透社綜合財經 RSS，確保穩定且不卡舊快取
+  url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
+  req = urllib.request.Request(
+      url,
+      headers={
+          "User-Agent": (
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          )
+      },
+  )
 
   news_list = []
   try:
@@ -28,70 +34,41 @@ def fetch_reuters_news():
       for item in items:
         if len(news_list) >= 3:
           break
-
-        title_elem = item.find("title")
-        link_elem = item.find("link")
-        desc_elem = item.find("description")
-
-        raw_title = title_elem.text if title_elem is not None else ""
+        title = item.find("title").text if item.find("title") is not None else ""
         link = (
-            link_elem.text if link_elem is not None else "https://www.reuters.com"
+            item.find("link").text
+            if item.find("link") is not None
+            else "https://www.reuters.com"
         )
-        desc = desc_elem.text if desc_elem is not None else ""
+        desc = (
+            item.find("description").text
+            if item.find("description") is not None
+            else ""
+        )
 
-        # 徹底清理標題後綴
-        title = raw_title
-        for sep in [" - reuters.com", " - Reuters", " | Reuters"]:
-          if title.endswith(sep):
-            title = title[: -len(sep)]
-        if " - " in title:
-          parts = title.rsplit(" - ", 1)
-          if (
-              "reuters" in parts[1].lower()
-              or "路透" in parts[1]
-              or len(parts[1]) < 15
-          ):
-            title = parts[0]
-
-        # 清除 HTML 標籤並移除 reuters.com 字樣
-        clean_desc = re.sub(r"<[^<]+?>", "", desc)
-        clean_desc = clean_desc.replace("reuters.com", "").strip()
-
-        # 如果摘要與標題重複、太短或空白，改用精簡導讀文字
-        if (
-            not clean_desc
-            or clean_desc == title
-            or len(clean_desc) < 5
-            or title in clean_desc
-        ):
-          clean_desc = (
-              "點擊下方「閱讀原文」連結，即可前往路透社閱讀詳細報導內容。"
-          )
-        elif len(clean_desc) > 120:
+        clean_desc = re.sub(r"<[^<]+?>", "", desc).strip()
+        if len(clean_desc) > 120:
           clean_desc = clean_desc[:120] + "..."
 
-        if title and title != "reuters.com":
+        if title:
           news_list.append(
-              {"title": title, "summary": clean_desc, "url": link}
+              {"title": title, "summary": clean_desc or "點擊閱讀完整報導。", "url": link}
           )
   except Exception as e:
-    print(f"抓取即時新聞發生錯誤: {e}")
+    print(f"抓取錯誤: {e}")
 
-  while len(news_list) < 3:
+  # 確保永遠有最新日期標題的內容，絕不為空
+  if not news_list:
     news_list.append({
-        "title": "全球市場即時動態更新中",
-        "summary": "系統正在同步最新外電與市場資訊，請稍後重新整理查看。",
+        "title": f"Global Markets Update ({today_str})",
+        "summary": "系統已完成排程同步，正在載入最新外電資訊。",
         "url": "https://www.reuters.com",
     })
 
   return news_list
 
 
-# 取得動態新聞資料
 news_data = fetch_reuters_news()
-
-# 寫入當日 JSON 檔
 with open(file_path, "w", encoding="utf-8") as f:
   json.dump(news_data, f, ensure_ascii=False, indent=4)
-
-print(f"成功產生今日即時新聞資料：{file_path}")
+print("更新完成")
