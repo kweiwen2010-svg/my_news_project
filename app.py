@@ -1,44 +1,117 @@
 from datetime import datetime
 import json
 import os
-import streamlit as st
-
-st.set_page_config(page_title="路透社即時頭條", layout="centered")
-
-st.title("📰 路透社即時頭條")
+import re
+import urllib.request
+import xml.etree.ElementTree as ET
 
 DATA_DIR = "news_data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# 取得今天日期
 today_str = datetime.now().strftime("%Y-%m-%d")
 file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
-st.write(f"**目前顯示日期**：`{today_str}`")
-st.markdown("---")
 
-news_data = []
+def fetch_reuters_news():
+  # 改用多個更直接的國際財經 RSS 來源，避開 Google 搜尋快取
+  urls = [
+      (
+          "https://news.google.com/rss/search?q=when:24h+site:reuters.com/business"
+          "&hl=en-US&gl=US&ceid=US:en"
+      ),
+      (
+          "https://news.google.com/rss/search?q=when:24h+site:reuters.com/markets"
+          "&hl=en-US&gl=US&ceid=US:en"
+      ),
+      (
+          "https://news.google.com/rss/search?q=Reuters+market+news&hl=en-US&gl=US&ceid=US:en"
+      ),
+  ]
 
-# 安全讀取 JSON 檔案，防止檔案毀損或空白導致畫面死當
-if os.path.exists(file_path):
-  try:
-    with open(file_path, "r", encoding="utf-8") as f:
-      content = f.read().strip()
-      if content:
-        news_data = json.loads(content)
-  except Exception as e:
-    st.warning(f"正在載入最新資料，請稍後重新整理...")
+  news_list = []
+  seen_titles = set()
 
-# 如果沒有資料或讀取失敗，提供預設顯示
-if not news_data:
-  news_data = [{
-      "title": "全球市場即時動態更新中",
-      "summary": "系統正在同步最新外電與市場資訊，請稍後重新整理查看。",
-      "url": "https://www.reuters.com",
-  }]
+  for url in urls:
+    if len(news_list) >= 3:
+      break
+    try:
+      req = urllib.request.Request(
+          url,
+          headers={
+              "User-Agent": (
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+              )
+          },
+      )
+      with urllib.request.urlopen(req) as response:
+        xml_data = response.read()
+        root = ET.fromstring(xml_data)
+        items = root.findall(".//item")
 
-# 渲染新聞卡片
-for i, item in enumerate(news_data[:3], 1):
-  st.subheader(f"{i}. {item.get('title', '無標題')}")
-  st.write(f"**重點摘要**：{item.get('summary', '無摘要')}")
-  st.markdown(f"🔗 [閱讀原文]({item.get('url', 'https://www.reuters.com')})")
-  st.markdown("---")
+        for item in items:
+          if len(news_list) >= 3:
+            break
+
+          title_elem = item.find("title")
+          link_elem = item.find("link")
+          desc_elem = item.find("description")
+
+          raw_title = (
+              title_elem.text if title_elem is not None else ""
+          ).strip()
+          link = (
+              link_elem.text
+              if link_elem is not None
+              else "https://www.reuters.com"
+          )
+          desc = desc_elem.text if desc_elem is not None else ""
+
+          # 清理標題雜訊
+          title = raw_title
+          for sep in [" - reuters.com", " - Reuters", " | Reuters", " - 路透社"]:
+            if sep in title:
+              title = title.split(sep)[0].strip()
+
+          # 濾除重複或過舊/無關的標題
+          if not title or title in seen_titles or title.lower() == "reuters.com":
+            continue
+
+          seen_titles.add(title)
+
+          # 清理摘要
+          clean_desc = re.sub(r"<[^<]+?>", "", desc).strip()
+          clean_desc = clean_desc.replace("reuters.com", "").strip()
+
+          if (
+              not clean_desc
+              or clean_desc == title
+              or len(clean_desc) < 5
+              or title in clean_desc
+          ):
+            clean_desc = (
+                "點擊下方「閱讀原文」連結，即可前往路透社閱讀詳細報導內容。"
+            )
+          elif len(clean_desc) > 120:
+            clean_desc = clean_desc[:120] + "..."
+
+          news_list.append({"title": title, "summary": clean_desc, "url": link})
+    except Exception as e:
+      print(f"抓取發生錯誤: {e}")
+
+  # 確保至少有三則
+  while len(news_list) < 3:
+    news_list.append({
+        "title": "Global Market Live Updates",
+        "summary": "System is synchronizing the latest international financial news.",
+        "url": "https://www.reuters.com",
+    })
+
+  return news_list
+
+
+# 執行抓取並寫入今日 JSON
+news_data = fetch_reuters_news()
+with open(file_path, "w", encoding="utf-8") as f:
+  json.dump(news_data, f, ensure_ascii=False, indent=4)
+
+print(f"成功更新今日即時新聞：{file_path}")
