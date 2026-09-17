@@ -1,84 +1,56 @@
 from datetime import datetime
 import json
 import os
-import re
-import urllib.request
-import xml.etree.ElementTree as ET
+import streamlit as st
 
-DATA_DIR = "news_data"
-os.makedirs(DATA_DIR, exist_ok=True)
+st.set_page_config(page_title="全球熱門焦點頭條", page_icon="📰", layout="centered")
+
+st.title("📰 全球熱門焦點頭條")
 
 today_str = datetime.now().strftime("%Y-%m-%d")
+st.write(f"目前顯示日期：`{today_str}`")
+st.markdown("---")
+
+DATA_DIR = "news_data"
 file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
+news_list = []
 
-def fetch_news():
-  # 改用 BBC News 世界新聞 RSS，結構標準且穩定
-  url = "https://feeds.bbci.co.uk/news/world/rss.xml"
-  req = urllib.request.Request(
-      url,
-      headers={
-          "User-Agent": (
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-              " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          )
-      },
-  )
-
-  news_list = []
+# 1. 先嘗試讀取今天的檔案
+if os.path.exists(file_path):
   try:
-    with urllib.request.urlopen(req) as response:
-      xml_data = response.read()
-      root = ET.fromstring(xml_data)
-
-      # BBC RSS 的新聞項目都在 channel/item 下
-      items = root.findall(".//item")
-
-      for item in items:
-        if len(news_list) >= 3:
-          break
-
-        title_elem = item.find("title")
-        link_elem = item.find("link")
-        desc_elem = item.find("description")
-
-        title = (
-            title_elem.text if title_elem is not None and title_elem.text else ""
-        )
-        link = (
-            link_elem.text
-            if link_elem is not None and link_elem.text
-            else "https://www.bbc.com/news"
-        )
-        desc = (
-            desc_elem.text if desc_elem is not None and desc_elem.text else ""
-        )
-
-        clean_desc = re.sub(r"<[^<]+?>", "", desc).strip()
-        if len(clean_desc) > 120:
-          clean_desc = clean_desc[:120] + "..."
-
-        if title:
-          news_list.append({
-              "title": title.strip(),
-              "summary": clean_desc or "點擊閱讀完整報導。",
-              "url": link.strip(),
-          })
+    with open(file_path, "r", encoding="utf-8") as f:
+      news_list = json.load(f)
   except Exception as e:
-    print(f"抓取錯誤: {e}")
+    print(f"讀取今日 JSON 失敗: {e}")
 
-  # 只有在完全抓不到時才使用備份
-  if not news_list:
-    news_list.append({
-        "title": f"全球熱門焦點更新中 ({today_str})",
-        "summary": "正在等待系統排程同步最新外電資訊，請稍後重新整理。",
-        "url": "https://www.bbc.com/news",
-    })
+# 2. 如果今天檔案不存在或裡面是空的，自動找最近一天的歷史 JSON 檔案
+if not news_list and os.path.exists(DATA_DIR):
+  files = sorted(
+      [f for f in os.listdir(DATA_DIR) if f.endswith(".json")], reverse=True
+  )
+  if files:
+    latest_file = os.path.join(DATA_DIR, files[0])
+    try:
+      with open(latest_file, "r", encoding="utf-8") as f:
+        news_list = json.load(f)
+    except Exception as e:
+      print(f"讀取歷史 JSON 失敗: {e}")
 
-  return news_list
+# 3. 如果還是都沒有，給予預設新聞資料
+if not news_list:
+  news_list = [{
+      "title": "全球市場即時動態更新中",
+      "summary": (
+          "系統正在同步最新外電與市場資訊，請稍後重新整理或檢查 GitHub"
+          " Actions 執行狀態。"
+      ),
+      "url": "https://www.bbc.com/news",
+  }]
 
-
-news_data = fetch_news()
-with open(file_path, "w", encoding="utf-8") as f:
-  json.dump(news_data, f, ensure_ascii=False, indent=4)
-print("更新完成")
+# 渲染畫面上的新聞卡片
+for i, news in enumerate(news_list[:3], 1):
+  st.subheader(f"{i}. {news.get('title', '')}")
+  st.write(f"**重點摘要**：{news.get('summary', '')}")
+  st.markdown(f"[🔗 閱讀原文]({news.get('url', '#')})")
+  st.markdown("---")
