@@ -13,7 +13,8 @@ file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_news():
-  url = "https://feeds.bbci.co.uk/news/world/rss.xml"
+  # 改用專門聚合路透社世界與市場焦點的 RSS 來源
+  url = "https://news.google.com/rss/search?q=when:24h+site:reuters.com&hl=en-US&gl=US&ceid=US:en"
   req = urllib.request.Request(
       url,
       headers={
@@ -46,7 +47,7 @@ def fetch_news():
         link = (
             link_elem.text
             if link_elem is not None and link_elem.text
-            else "https://www.bbc.com/news"
+            else "https://www.reuters.com"
         )
         desc = (
             desc_elem.text if desc_elem is not None and desc_elem.text else ""
@@ -59,7 +60,7 @@ def fetch_news():
         if title:
           news_list.append({
               "title": title.strip(),
-              "summary": clean_desc or "點擊閱讀完整報導。",
+              "summary": clean_desc or "點擊閱讀完整路透社報導。",
               "url": link.strip(),
           })
   except Exception as e:
@@ -67,9 +68,9 @@ def fetch_news():
 
   if not news_list:
     news_list.append({
-        "title": f"全球熱門焦點更新中 ({today_str})",
-        "summary": "正在等待系統排程同步最新外電資訊，請稍後重新整理。",
-        "url": "https://www.bbc.com/news",
+        "title": f"全球路透焦點更新中 ({today_str})",
+        "summary": "正在等待系統排程同步最新路透外電，請稍後重新整理。",
+        "url": "https://www.reuters.com",
     })
 
   return news_list
