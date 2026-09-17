@@ -12,14 +12,14 @@ today_str = datetime.now().strftime("%Y-%m-%d")
 file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
-def fetch_reuters_news():
-  # 改用 Yahoo News / 綜合全球頭條 RSS，確保能穩定抓取路透社等主流媒體的熱門必讀綜合新聞
+def fetch_news():
   url = "https://news.yahoo.com/rss/world"
   req = urllib.request.Request(
       url,
       headers={
           "User-Agent": (
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+              " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           )
       },
   )
@@ -29,46 +29,50 @@ def fetch_reuters_news():
     with urllib.request.urlopen(req) as response:
       xml_data = response.read()
       root = ET.fromstring(xml_data)
+
+      # 兼容不同的 RSS 格式，直接尋找所有 item 標籤
       items = root.findall(".//item")
+      if not items:
+        # 如果找不到，試著在 channel 底下找
+        items = root.findall("./channel/item")
 
       for item in items:
         if len(news_list) >= 3:
           break
-        title = item.find("title").text if item.find("title") is not None else ""
-        link = (
-            item.find("link").text
-            if item.find("link") is not None
-            else "https://www.reuters.com"
-        )
-        desc = (
-            item.find("description").text
-            if item.find("description") is not None
-            else ""
-        )
+
+        title_elem = item.find("title")
+        link_elem = item.find("link")
+        desc_elem = item.find("description")
+
+        title = title_elem.text if title_elem is not None and title_elem.text else ""
+        link = link_elem.text if link_elem is not None and link_elem.text else "https://news.yahoo.com"
+        desc = desc_elem.text if desc_elem is not None and desc_elem.text else ""
 
         clean_desc = re.sub(r"<[^<]+?>", "", desc).strip()
         if len(clean_desc) > 120:
           clean_desc = clean_desc[:120] + "..."
 
         if title:
-          news_list.append(
-              {"title": title, "summary": clean_desc or "點擊閱讀完整報導。", "url": link}
-          )
+          news_list.append({
+              "title": title.strip(),
+              "summary": clean_desc or "點擊閱讀完整報導。",
+              "url": link.strip(),
+          })
   except Exception as e:
     print(f"抓取錯誤: {e}")
 
-  # 確保永遠有最新日期標題的內容，絕不為空
+  # 如果真的抓不到，才顯示預設提示
   if not news_list:
     news_list.append({
-        "title": f"Global World News Update ({today_str})",
-        "summary": "系統已完成排程同步，正在載入最新全球熱門頭條資訊。",
-        "url": "https://www.reuters.com",
+        "title": f"全球熱門焦點更新中 ({today_str})",
+        "summary": "正在等待系統排程同步最新外電資訊，請稍後重新整理。",
+        "url": "https://news.yahoo.com",
     })
 
   return news_list
 
 
-news_data = fetch_reuters_news()
+news_data = fetch_news()
 with open(file_path, "w", encoding="utf-8") as f:
   json.dump(news_data, f, ensure_ascii=False, indent=4)
 print("更新完成")
