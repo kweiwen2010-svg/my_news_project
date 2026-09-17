@@ -13,7 +13,8 @@ file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_news():
-  url = "https://news.yahoo.com/rss/world"
+  # 改用 BBC News 世界新聞 RSS，結構標準且穩定
+  url = "https://feeds.bbci.co.uk/news/world/rss.xml"
   req = urllib.request.Request(
       url,
       headers={
@@ -30,11 +31,8 @@ def fetch_news():
       xml_data = response.read()
       root = ET.fromstring(xml_data)
 
-      # 兼容不同的 RSS 格式，直接尋找所有 item 標籤
+      # BBC RSS 的新聞項目都在 channel/item 下
       items = root.findall(".//item")
-      if not items:
-        # 如果找不到，試著在 channel 底下找
-        items = root.findall("./channel/item")
 
       for item in items:
         if len(news_list) >= 3:
@@ -44,9 +42,17 @@ def fetch_news():
         link_elem = item.find("link")
         desc_elem = item.find("description")
 
-        title = title_elem.text if title_elem is not None and title_elem.text else ""
-        link = link_elem.text if link_elem is not None and link_elem.text else "https://news.yahoo.com"
-        desc = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        title = (
+            title_elem.text if title_elem is not None and title_elem.text else ""
+        )
+        link = (
+            link_elem.text
+            if link_elem is not None and link_elem.text
+            else "https://www.bbc.com/news"
+        )
+        desc = (
+            desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        )
 
         clean_desc = re.sub(r"<[^<]+?>", "", desc).strip()
         if len(clean_desc) > 120:
@@ -61,12 +67,12 @@ def fetch_news():
   except Exception as e:
     print(f"抓取錯誤: {e}")
 
-  # 如果真的抓不到，才顯示預設提示
+  # 只有在完全抓不到時才使用備份
   if not news_list:
     news_list.append({
         "title": f"全球熱門焦點更新中 ({today_str})",
         "summary": "正在等待系統排程同步最新外電資訊，請稍後重新整理。",
-        "url": "https://news.yahoo.com",
+        "url": "https://www.bbc.com/news",
     })
 
   return news_list
