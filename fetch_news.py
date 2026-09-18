@@ -13,8 +13,8 @@ file_path = os.path.join(DATA_DIR, f"{today_str}.json")
 
 
 def fetch_news():
-  # 改用專門聚合路透社世界與市場焦點的 RSS 來源
-  url = "https://news.google.com/rss/search?q=when:24h+site:reuters.com&hl=en-US&gl=US&ceid=US:en"
+  # 改用 CNN 或 BBC 的穩定公開 RSS，確保每次自動排程都能順利抓取
+  url = "http://rss.cnn.com/rss/edition_world.rss"
   req = urllib.request.Request(
       url,
       headers={
@@ -27,7 +27,7 @@ def fetch_news():
 
   news_list = []
   try:
-    with urllib.request.urlopen(req) as response:
+    with urllib.request.urlopen(req, timeout=10) as response:
       xml_data = response.read()
       root = ET.fromstring(xml_data)
 
@@ -47,7 +47,7 @@ def fetch_news():
         link = (
             link_elem.text
             if link_elem is not None and link_elem.text
-            else "https://www.reuters.com"
+            else "https://www.cnn.com"
         )
         desc = (
             desc_elem.text if desc_elem is not None and desc_elem.text else ""
@@ -60,7 +60,7 @@ def fetch_news():
         if title:
           news_list.append({
               "title": title.strip(),
-              "summary": clean_desc or "點擊閱讀完整路透社報導。",
+              "summary": clean_desc or "點擊閱讀完整報導。",
               "url": link.strip(),
           })
   except Exception as e:
@@ -68,9 +68,9 @@ def fetch_news():
 
   if not news_list:
     news_list.append({
-        "title": f"全球路透焦點更新中 ({today_str})",
-        "summary": "正在等待系統排程同步最新路透外電，請稍後重新整理。",
-        "url": "https://www.reuters.com",
+        "title": f"全球熱門焦點更新中 ({today_str})",
+        "summary": "正在等待系統排程同步最新外電資訊，請稍後重新整理。",
+        "url": "https://www.cnn.com",
     })
 
   return news_list
